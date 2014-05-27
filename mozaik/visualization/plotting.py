@@ -63,6 +63,7 @@ import mozaik
 logger = mozaik.getMozaikLogger()
 
 
+
 class Plotting(ParametrizedObject):
     """
     The high level Plotting API. See the module information on more detailed description.
@@ -180,6 +181,8 @@ class Plotting(ParametrizedObject):
     def update_animation_function(b,self):
         for auf,parent in self.animation_update_functions:
             auf(parent)
+
+
 
 class PlotTuningCurve(Plotting):
     """
@@ -419,6 +422,7 @@ class PlotTuningCurve(Plotting):
            
            return val,par 
         
+
     
 class RasterPlot(Plotting):
     """ 
@@ -464,6 +468,7 @@ class RasterPlot(Plotting):
                      ('SpikeHistogramPlot',SpikeHistogramPlot(sp),gs[3, 0],{})]
         else:
             return [('SpikeRasterPlot',SpikeRasterPlot(sp),gs,{})]
+
 
         
 class VmPlot(Plotting):
@@ -519,6 +524,7 @@ class VmPlot(Plotting):
                })]
 
 
+
 class GSynPlot(Plotting):
     """
     It plots the conductances stored in the recordings.
@@ -552,6 +558,7 @@ class GSynPlot(Plotting):
         gsyn_es = [s.get_esyn(self.parameters.neuron) for s in dsv.get_segments()]
         gsyn_is = [s.get_isyn(self.parameters.neuron) for s in dsv.get_segments()]
         return [("ConductancesPlot",ConductancesPlot(gsyn_es, gsyn_is),gs,{})]
+
 
 
 class OverviewPlot(Plotting):
@@ -620,6 +627,7 @@ class OverviewPlot(Plotting):
         return d
 
 
+
 class AnalogSignalListPlot(Plotting):
     """
     This plot shows a line of plots each showing analog signals for different neurons (in the same plot), one plot per each AnalogSignalList instance
@@ -671,6 +679,7 @@ class AnalogSignalListPlot(Plotting):
         return [("AnalogSignalPlot" ,StandardStyleLinePlot(xs, ys),subplotspec,params)]
 
 
+
 class AnalogSignalPlot(Plotting):
     """
     This plot shows a line of plots each showing the given AnalogSignal, one plot per each AnalogSignal instance present in the datastore.
@@ -707,6 +716,7 @@ class AnalogSignalPlot(Plotting):
         params["x_ticks"] = [a.t_start.magnitude, a.t_stop.magnitude]
         params["mean"] = True
         return [("AnalogSignalPlot" ,StandardStyleLinePlot([times], [a]),subplotspec,params)]
+
 
 
 class ConductanceSignalListPlot(Plotting):
@@ -755,6 +765,49 @@ class ConductanceSignalListPlot(Plotting):
         return [("ConductancePlot",ConductancesPlot(exc, inh),subplotspec,{})]
 
 
+
+class PerNeuronPairAnalogSignalListPlot(Plotting):
+    """
+    This plot shows a line of plots each showing analog signals for pairs of neurons (in the same plot), one plot per each AnalogSignalList instance
+    present in the datastore.
+    
+    It defines line of plots named: 'AnalogSignalPlot.Plot0' ... 'AnalogSignalPlot.PlotN'.
+    
+    Other parameters
+    ----------------
+    
+    sheet_name : str
+               From which layer to plot.
+            
+    """
+    required_parameters = ParameterSet({
+        'sheet_name': str,  # the name of the sheet for which to plot
+    })
+
+    def subplot(self, subplotspec):
+        dsv = queries.param_filter_query(self.datastore, sheet_name=self.parameters.sheet_name, identifier='AnalogSignalList')
+        return PerStimulusADSPlot(dsv, function=self._ploter, title_style="Clever").make_line_plot( subplotspec )
+
+    def _ploter(self, dsv, subplotspec):
+        self.analog_signal_list = dsv.get_analysis_result()
+        #print "self.analog_signal_list:",self.analog_signal_list
+        assert len(self.analog_signal_list) != 0, "ERROR, empty datastore"
+        assert len(self.analog_signal_list) == 1, "Currently only one AnalogSignalList per stimulus can be plotted"
+        self.analog_signal_list = self.analog_signal_list[0] # take only one, the first
+        # get the asl from the first tuple id pair
+        asl = self.analog_signal_list.get_asl_by_id_pair( (self.analog_signal_list.ids)[0] )
+        times = numpy.linspace(asl.t_start, asl.t_stop, len(asl))
+        params = {}
+        params["x_lim"] = (asl.t_start.magnitude, asl.t_stop.magnitude)
+        params["x_label"] = self.analog_signal_list.x_axis_name + '(' + asl.t_start.dimensionality.latex + ')'
+        params["y_label"] = self.analog_signal_list.y_axis_name
+        params["x_ticks"] = [asl.t_start.magnitude, asl.t_stop.magnitude]
+        params["mean"] = True
+        # generate the plot
+        return [ ("AnalogSignalPlot", StandardStyleLinePlot([times],[asl]), subplotspec, params) ]
+
+
+
 class RetinalInputMovie(Plotting):
     """
     This plots one plot showing the retinal input per each recording in the datastore. 
@@ -779,7 +832,8 @@ class RetinalInputMovie(Plotting):
         title = title + stimulus.name + '\n'
         for pn, pv in stimulus.get_param_values():
                 title = title + pn + ' : ' + str(pv) + '\n'
-        return [('PixelMovie',PixelMovie(self.retinal_input[idx],1.0/self.parameters.frame_rate*1000),gs,{'x_axis':False, 'y_axis':False, "title" : title})]
+        return [('PixelMovie',PixelMovie(self.retinal_input[idx]),gs,{'x_axis':False, 'y_axis':False, "title" : title})]
+
 
 
 class ActivityMovie(Plotting):
@@ -866,6 +920,7 @@ class ActivityMovie(Plotting):
             return [("ScatterPlot",ScatterPlotMovie(posx, posy, h.T),gs,{'x_axis':False, 'y_axis':False,'dot_size':40})]
 
 
+
 class PerNeuronValuePlot(Plotting):
     """
     Plots the values for all PerNeuronValue ADSs in the datastore, one for each sheet.
@@ -897,8 +952,8 @@ class PerNeuronValuePlot(Plotting):
     })
     
     def __init__(self, datastore, parameters, plot_file_name=None,
-                 fig_param=None,frame_duration=0):
-        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param,frame_duration)
+                 fig_param=None):
+        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param)
         self.poss = []
         self.pnvs = []
         self.sheets = []
@@ -935,18 +990,16 @@ class PerNeuronValuePlot(Plotting):
             params["y_label"] = 'y'
             params["title"] = self.sheets[idx] + '\n' + self.pnvs[idx][0].value_name
             params["colorbar_label"] = self.pnvs[idx][0].value_units.dimensionality.latex
+            params["colorbar"]  = True
 
-            if periodic:
-                if idx == self.length - 1:
-                    params["colorbar"]  = True
-            else:
-                params["colorbar"]  = True
             return [("ScatterPlot",ScatterPlot(posx, posy, values, periodic=periodic,period=period),gs,params)]
         else:
             params = {}
             params["y_label"] = '# neurons'
             params["title"] = self.pnvs[idx][0].value_name
             return [("HistogramPlot",HistogramPlot([self.pnvs[idx][0].values]),gs,params)]
+
+
 
 class PerNeuronValueScatterPlot(Plotting):
     """
@@ -955,8 +1008,8 @@ class PerNeuronValueScatterPlot(Plotting):
     It defines line of plots named: 'ScatterPlot.Plot0' ... 'ScatterPlot.PlotN
     """
     
-    def __init__(self, datastore, parameters, plot_file_name=None,fig_param=None,frame_duration=0):
-        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param,frame_duration)
+    def __init__(self, datastore, parameters, plot_file_name=None,fig_param=None):
+        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param)
 
         self.pairs = []
         self.sheets = []
@@ -1010,6 +1063,7 @@ class PerNeuronValueScatterPlot(Plotting):
         return [("ScatterPlot",ScatterPlot(pair[0].get_value_by_id(ids), pair[1].get_value_by_id(ids)),gs,params)]
         
 
+
 class ConnectivityPlot(Plotting):
     """
     Plots Connectivity, one for each projection originating or targeting
@@ -1053,14 +1107,13 @@ class ConnectivityPlot(Plotting):
     })
 
     def __init__(self, datastore, parameters, pnv_dsv=None,
-                 plot_file_name=None, fig_param=None,frame_duration=0):
-        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param,frame_duration)
+                 plot_file_name=None, fig_param=None):
+        Plotting.__init__(self, datastore, parameters, plot_file_name, fig_param)
         self.connecting_neurons_positions = []
         self.connected_neuron_position = []
         self.connections = []
 
         _connections = datastore.get_analysis_result(identifier='Connections')
-
         self.pnvs = None
         if pnv_dsv != None:
             self.pnvs = []
@@ -1069,13 +1122,8 @@ class ConnectivityPlot(Plotting):
                                                 parameter_list=['sheet_name'],excpt=True)
             for dsv in z:
                 a = dsv.get_analysis_result(identifier='PerNeuronValue')
-                if len(a) > 1:
-                    logger.error('ERROR: Only one PerNeuronValue value per sheet is allowed in ConnectivityPlot. Ignoring PNVs')
-                    self.pnvs = None
-                    break
-                elif len(a) != 0:
-                    self.pnvs.append(a[0])
-
+                self.pnvs.append(a[0])
+        
         for conn in _connections:
             if not self.parameters.reversed and conn.source_name == self.parameters.sheet_name:
                 # add outgoing projections from sheet_name
@@ -1087,8 +1135,7 @@ class ConnectivityPlot(Plotting):
                             (z[0][idx],
                              z[1][idx]))
                 self.connections.append(conn)
-            elif (self.parameters.reversed
-                  and conn.target_name == self.parameters.sheet_name):
+            elif (self.parameters.reversed and conn.target_name == self.parameters.sheet_name):
                 # add incomming projections from sheet_name
                 self.connecting_neurons_positions.append(
                             datastore.get_neuron_postions()[conn.source_name])
@@ -1114,11 +1161,12 @@ class ConnectivityPlot(Plotting):
         ty = self.connected_neuron_position[idx][1]
         if not self.parameters.reversed:
             index = self.datastore.get_sheet_indexes(self.connections[idx].source_name,self.parameters.neuron)
-            ix = numpy.flatnonzero(numpy.array(self.connections[idx].weights)[:,1]==index)
+            ix = numpy.flatnonzero(numpy.array(self.connections[idx].weights)[:,0]==index)
+            ix = numpy.array(self.connections[idx].weights)[:,1][ix].astype(int)
         else:
             index = self.datastore.get_sheet_indexes(self.connections[idx].target_name,self.parameters.neuron)
-            ix = numpy.flatnonzero(numpy.array(self.connections[idx].weights)[:,0]==index)
-            
+            ix = numpy.flatnonzero(numpy.array(self.connections[idx].weights)[:,1]==index)
+            ix = numpy.array(self.connections[idx].weights)[:,0][ix].astype(int)
             
         sx = self.connecting_neurons_positions[idx][0][ix]
         sy = self.connecting_neurons_positions[idx][1][ix]
@@ -1140,42 +1188,56 @@ class ConnectivityPlot(Plotting):
             elif len(pnv) != 0:
                 pnv = pnv[0]
 
-                if len(pnv.values) != len(w):
-                    raise ValueError('ERROR: length of colors does not match length of weights \[%d \!\= %d\]. Ignoring colors!' % (len(pnv.values), len(w)))
-
         gss = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs)
         
         # Plot the weights
         gs = gss[0,0]
         params = {}
+        
+        if self.parameters.reversed:
+            xs = self.connections[idx].source_size[0]
+            ys = self.connections[idx].source_size[1]
+        else:
+            xs = self.connections[idx].target_size[0]
+            ys = self.connections[idx].target_size[1]
+        
+        params["x_lim"] = (-xs/2.0,xs/2.0)
+        params["y_lim"] = (-ys/2.0,ys/2.0)
+        
         if pnv != []:
             from mozaik.tools.circ_stat import circ_mean
-            (angle, mag) = circ_mean(numpy.array(pnv.values),
+            (angle, mag) = circ_mean(numpy.array(pnv.get_value_by_id(self.datastore.get_sheet_ids(pnv.sheet_name,ix))),
                                      weights=w,
                                      high=pnv.period)
-            params["title"] = 'Weights: '+ str(self.connections[idx].proj_name) + "| Weighted mean: " + str(angle)
+            params["title"] = str(self.connections[idx].proj_name) + "\n Mean: " + str(angle)
             params["colorbar_label"] =  pnv.value_name
             params["colorbar"] = True
-            
+
             if self.connections[idx].source_name == self.connections[idx].target_name:
                 params["line"] = False
-                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, tx, ty, w,colors=pnv.values,period=pnv.period),gs,params)]
+                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, tx, ty, w,colors=pnv.get_value_by_id(self.datastore.get_sheet_ids(pnv.sheet_name,ix)),period=pnv.period),gs,params)]
             else:
                 params["line"] = True
-                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, numpy.min(sx)*1.2, numpy.min(sy)*1.2, w,colors=pnv.values,period=pnv.period),gs,params)]
+                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, numpy.min(sx)*1.2, numpy.min(sy)*1.2, w,colors=pnv.get_value_by_id(self.datastore.get_sheet_ids(pnv.sheet_name,ix)),period=pnv.period),gs,params)]
         else:
             params["title"] = 'Weights: '+ self.connections[idx].proj_name
             
             if self.connections[idx].source_name == self.connections[idx].target_name:
                 params["line"] = False
-                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, tx, ty, w,colors=pnv.values,period=pnv.period),gs,params)]
+                plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, tx, ty, w),gs,params)]
             else:
                 params["line"] = True
                 plots = [("ConnectionsPlot",ConnectionPlot(sx, sy, numpy.min(sx)*1.2, numpy.min(sy)*1.2,w),gs,params)]
 
+
         # Plot the delays
         gs = gss[1,0]
         params = {}
+        params["x_lim"] = (-xs/2.0,xs/2.0)
+        params["y_lim"] = (-ys/2.0,ys/2.0)
+        if idx == self.length-1:
+           params["colorbar"] = True
+        
         params["title"]  = 'Delays: '+ self.connections[idx].proj_name
         if self.connections[idx].source_name == self.connections[idx].target_name:
             params["line"] = False
